@@ -1,0 +1,383 @@
+# 🔥 Alimedia Firebase API
+
+Una API RESTful robusta construida en Go que proporciona una interfaz completa para gestionar usuarios y documentos de Firebase, incluyendo Firebase Authentication y Firestore.
+
+## 📋 Tabla de Contenidos
+
+- [Características](#-características)
+- [Tecnologías](#-tecnologías)
+- [Instalación](#-instalación)
+- [Configuración](#-configuración)
+- [Uso](#-uso)
+- [Endpoints de la API](#-endpoints-de-la-api)
+- [Ejemplos con curl](#-ejemplos-con-curl)
+- [Postman](#-postman)
+- [Estructura del Proyecto](#-estructura-del-proyecto)
+- [Contribución](#-contribución)
+- [Licencia](#-licencia)
+
+## ✨ Características
+
+- 🔐 **Gestión completa de usuarios** con Firebase Authentication
+- 📄 **CRUD de documentos** en Firestore
+- 🔍 **Consultas avanzadas** con filtros y ordenamiento
+- 📊 **Estadísticas y monitoreo** del servidor
+- 🚀 **API RESTful** bien estructurada
+- 📝 **Documentación integrada** en `/api/v1/docs`
+- 🌐 **CORS habilitado** para desarrollo frontend
+- 🛡️ **Manejo robusto de errores**
+
+## 🛠️ Tecnologías
+
+- **Go 1.21+**
+- **Gin Framework** - Router HTTP rápido y minimalista
+- **Firebase Admin SDK** - Authentication y Firestore
+- **Firebase Authentication** - Gestión de usuarios
+- **Cloud Firestore** - Base de datos NoSQL
+
+## 🚀 Instalación
+
+### Prerrequisitos
+
+- Go 1.21 o superior
+- Proyecto de Firebase configurado
+- Credenciales de Firebase Admin SDK
+
+### Pasos de instalación
+
+1. **Clona el repositorio**
+
+   ```bash
+   git clone https://github.com/andrescris/alimedia.git
+   cd alimedia
+   ```
+
+2. **Inicializa el módulo Go**
+
+   ```bash
+   go mod init github.com/andrescris/alimedia
+   go mod tidy
+   ```
+
+3. **Instala las dependencias**
+
+   ```bash
+   go get github.com/gin-gonic/gin
+   go get firebase.google.com/go/v4
+   ```
+
+4. **Configura las variables de entorno**
+   ```bash
+   cp .env.example .env
+   # Edita .env con tus credenciales de Firebase
+   ```
+
+## ⚙️ Configuración
+
+### Variables de Entorno
+
+Crea un archivo `.env` en la raíz del proyecto:
+
+```env
+# Firebase Configuration
+FIREBASE_PROJECT_ID=tu-proyecto-firebase
+GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccountKey.json
+
+# Server Configuration
+PORT=8080
+GIN_MODE=debug
+```
+
+### Credenciales de Firebase
+
+1. Ve a [Firebase Console](https://console.firebase.google.com/)
+2. Selecciona tu proyecto
+3. Ve a **Configuración del proyecto** > **Cuentas de servicio**
+4. Genera una nueva clave privada
+5. Descarga el archivo JSON y colócalo en tu proyecto
+6. Actualiza la variable `GOOGLE_APPLICATION_CREDENTIALS` en tu `.env`
+
+## 🎯 Uso
+
+### Iniciar el servidor
+
+```bash
+go run main.go
+```
+
+El servidor estará disponible en: `http://localhost:8080`
+
+### Verificar que funciona
+
+```bash
+curl http://localhost:8080/
+```
+
+Respuesta esperada:
+
+```json
+{
+  "message": "🔥 Firebase API Server",
+  "status": "running",
+  "project": "tu-proyecto-firebase"
+}
+```
+
+## 📚 Endpoints de la API
+
+### 👥 Usuarios
+
+| Método   | Endpoint                     | Descripción                      |
+| -------- | ---------------------------- | -------------------------------- |
+| `POST`   | `/api/v1/users`              | Crear nuevo usuario              |
+| `GET`    | `/api/v1/users`              | Listar usuarios (paginado)       |
+| `GET`    | `/api/v1/users/:uid`         | Obtener usuario por UID          |
+| `GET`    | `/api/v1/users/email/:email` | Obtener usuario por email        |
+| `PUT`    | `/api/v1/users/:uid`         | Actualizar usuario               |
+| `DELETE` | `/api/v1/users/:uid`         | Eliminar usuario                 |
+| `POST`   | `/api/v1/users/:uid/claims`  | Establecer claims personalizados |
+
+### 📄 Documentos
+
+| Método   | Endpoint                                        | Descripción          |
+| -------- | ----------------------------------------------- | -------------------- |
+| `POST`   | `/api/v1/collections/:collection/documents`     | Crear documento      |
+| `GET`    | `/api/v1/collections/:collection/documents`     | Listar documentos    |
+| `GET`    | `/api/v1/collections/:collection/documents/:id` | Obtener documento    |
+| `PUT`    | `/api/v1/collections/:collection/documents/:id` | Actualizar documento |
+| `DELETE` | `/api/v1/collections/:collection/documents/:id` | Eliminar documento   |
+
+### 🔍 Consultas
+
+| Método | Endpoint                                | Descripción           |
+| ------ | --------------------------------------- | --------------------- |
+| `POST` | `/api/v1/collections/:collection/query` | Consultar con filtros |
+
+### 🛠️ Utilidades
+
+| Método | Endpoint        | Descripción               |
+| ------ | --------------- | ------------------------- |
+| `GET`  | `/api/v1/stats` | Estadísticas del servidor |
+| `GET`  | `/api/v1/docs`  | Documentación de la API   |
+
+## 💻 Ejemplos con curl
+
+### Crear un usuario
+
+```bash
+curl -X POST http://localhost:8080/api/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "usuario@ejemplo.com",
+    "password": "password123",
+    "display_name": "Juan Pérez"
+  }'
+```
+
+### Listar usuarios
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/users?limit=10"
+```
+
+### Crear un documento
+
+```bash
+curl -X POST http://localhost:8080/api/v1/collections/products/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "iPhone 15",
+    "price": 999.99,
+    "category": "smartphones",
+    "in_stock": true
+  }'
+```
+
+### Consultar documentos con filtros
+
+```bash
+curl -X POST http://localhost:8080/api/v1/collections/products/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": [
+      {
+        "field": "price",
+        "operator": "<",
+        "value": 500
+      }
+    ],
+    "limit": 10
+  }'
+```
+
+## 📮 Postman
+
+### Importar Collection
+
+1. Descarga la [Postman Collection](./docs/postman/alimedia-api.postman_collection.json)
+2. Importa en Postman: `File > Import`
+3. Configura el environment con:
+   - `base_url`: `http://localhost:8080/api/v1`
+
+### Variables de Environment
+
+```json
+{
+  "base_url": "http://localhost:8080/api/v1",
+  "server_url": "http://localhost:8080"
+}
+```
+
+### Ejemplos de Request Bodies
+
+#### Crear Usuario
+
+```json
+{
+  "email": "test@ejemplo.com",
+  "password": "123456",
+  "display_name": "Usuario Test",
+  "phone_number": "+573001234567"
+}
+```
+
+#### Crear Producto
+
+```json
+{
+  "name": "Laptop Gaming",
+  "price": 1500.99,
+  "brand": "ASUS",
+  "category": "computers",
+  "in_stock": true,
+  "specs": {
+    "cpu": "Intel i7",
+    "ram": "16GB",
+    "storage": "512GB SSD"
+  }
+}
+```
+
+#### Query con Filtros
+
+```json
+{
+  "filters": [
+    {
+      "field": "category",
+      "operator": "==",
+      "value": "smartphones"
+    },
+    {
+      "field": "price",
+      "operator": ">=",
+      "value": 500
+    }
+  ],
+  "order_by": [
+    {
+      "field": "price",
+      "direction": "desc"
+    }
+  ],
+  "limit": 20
+}
+```
+
+## 📁 Estructura del Proyecto
+
+```
+alimedia/
+├── main.go                          # Punto de entrada de la aplicación
+├── go.mod                           # Dependencias del módulo
+├── go.sum                           # Checksums de dependencias
+├── .env                             # Variables de entorno
+├── .env.example                     # Ejemplo de variables de entorno
+├── README.md                        # Este archivo
+├── docs/                            # Documentación adicional
+│   └── postman/                     # Collections de Postman
+├── pkg/                             # Código de la aplicación
+│   └── handlers/                    # Handlers HTTP
+│       ├── user_handlers.go         # Gestión de usuarios
+│       ├── document_handlers.go     # Gestión de documentos
+│       └── utility_handlers.go      # Utilidades y stats
+└── lib/                             # Librerías externas
+    └── firebase/                    # Configuración de Firebase
+        ├── firebase.go              # Inicialización
+        ├── auth/                    # Firebase Auth
+        └── firestore/               # Firestore operations
+```
+
+## 🚦 Códigos de Estado HTTP
+
+| Código | Descripción                            |
+| ------ | -------------------------------------- |
+| `200`  | Operación exitosa                      |
+| `201`  | Recurso creado exitosamente            |
+| `400`  | Error en la petición (datos inválidos) |
+| `404`  | Recurso no encontrado                  |
+| `500`  | Error interno del servidor             |
+
+## 🔧 Desarrollo
+
+### Ejecutar en modo desarrollo
+
+```bash
+export GIN_MODE=debug
+go run main.go
+```
+
+### Ejecutar tests
+
+```bash
+go test ./...
+```
+
+### Build para producción
+
+```bash
+go build -o bin/alimedia main.go
+```
+
+### Ejecutar en producción
+
+```bash
+export GIN_MODE=release
+./bin/alimedia
+```
+
+## 🤝 Contribución
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+### Convenciones de Código
+
+- Usa `gofmt` para formatear el código
+- Ejecuta `go vet` para verificar errores
+- Añade tests para nuevas funcionalidades
+- Documenta funciones públicas
+- Sigue las convenciones de Go
+
+## 📄 Licencia
+
+Este proyecto está licenciado bajo la Licencia MIT - ve el archivo [LICENSE](LICENSE) para más detalles.
+
+## 📞 Soporte
+
+- **Issues**: [GitHub Issues](https://github.com/andrescris/alimedia/issues)
+- **Email**: andres@ejemplo.com
+- **Documentación**: `http://localhost:8080/api/v1/docs`
+
+## 🙏 Agradecimientos
+
+- [Gin Framework](https://github.com/gin-gonic/gin) - Framework HTTP
+- [Firebase Admin SDK](https://firebase.google.com/docs/admin/setup) - Backend services
+- [Go Community](https://golang.org/community/) - Por el excelente lenguaje
+
+---
+
+**Hecho con ❤️ en Go**

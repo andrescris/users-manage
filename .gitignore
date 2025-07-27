@@ -1,0 +1,46 @@
+# Binarios compilados
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de logs y temporales
+*.log
+*.tmp
+
+# Archivos de dependencias
+vendor/
+
+# Archivos de entorno
+.env
+
+# Archivos de configuración de herramientas de desarrollo
+.idea/
+.vscode/
+*.swp
+
+# Archivos de cobertura de pruebas
+*.coverprofile
+
+# Módulos descargados automáticamente por Go
+go.sum
+
+# Archivos de caché de compilación
+*.a
+
+# Firebase service account JSON si llegas a usarlo localmente
+firebase-service-account.json
+
+# Archivos del sistema operativo
+*.bak
+*~
+
+# Archivos generados automáticamente
+dist/
