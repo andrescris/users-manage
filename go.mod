@@ -3,7 +3,7 @@ module github.com/andrescris/alimedia
 go 1.24.3
 
 require (
-	github.com/andrescris/firestore v0.0.0-20250725161852-6430f123902d
+	github.com/andrescris/firestore v0.0.0-20250727205732-52a86365bed4
 	github.com/gin-gonic/gin v1.10.1
 )
 

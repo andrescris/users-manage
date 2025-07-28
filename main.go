@@ -62,7 +62,9 @@ func setupRoutes(r *gin.Engine) {
    authGroup := api.Group("/auth")
         {
             // El login solo necesita la API Key general
-            authGroup.POST("/login", handlers.Login)
+            authGroup.POST("/request-otp", handlers.RequestOTP)
+			// Endpoint para iniciar sesión con el código OTP
+			authGroup.POST("/login-otp", handlers.LoginWithOTP)
             // El logout necesita la API Key Y una sesión válida
             authGroup.POST("/logout", middleware.SessionAuthMiddleware(), handlers.Logout)
         }

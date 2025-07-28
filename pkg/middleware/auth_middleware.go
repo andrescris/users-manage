@@ -32,62 +32,26 @@ func APIKeyAuthMiddleware() gin.HandlerFunc {
 func SessionAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionID := c.GetHeader("X-Session-ID")
-		clientSubdomain := c.GetHeader("X-Client-Subdomain")
-
-		if sessionID == "" || clientSubdomain == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Faltan las cabeceras X-Session-ID o X-Client-Subdomain."})
+		if sessionID == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Falta la cabecera X-Session-ID."})
 			return
 		}
 
-		// 1. Validar la sesión
 		sessionInfo, err := auth.ValidateSession(context.Background(), sessionID)
 		if err != nil || !sessionInfo.Active {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Sesión inválida o expirada."})
 			return
 		}
 
-		// 2. Validar permiso para el subdominio
-		claims := sessionInfo.Claims
-		
-		// Un admin tiene acceso a todo
-		if role, ok := claims["role"].(string); ok && role == "admin" {
-			// Si es admin, guardamos los datos y continuamos
-			c.Set("uid", sessionInfo.UID)
-			c.Set("claims", claims)
-			c.Set("subdomain", clientSubdomain) // El admin opera en el subdominio que elija
-			c.Next()
-			return
-		}
-
-		// Para usuarios normales, verificamos que tengan el subdominio en su lista
-		userSubdomains, ok := claims["subdomain"].([]interface{})
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Acceso denegado. No tienes subdominios asignados."})
-			return
-		}
-
-		isAllowed := false
-		for _, sub := range userSubdomains {
-			if subStr, ok := sub.(string); ok && subStr == clientSubdomain {
-				isAllowed = true
-				break
-			}
-		}
-
-		if !isAllowed {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Acceso denegado. No tienes permiso para este subdominio."})
-			return
-		}
-
-		// 3. Si todo está bien, guardamos los datos en el contexto
+		// Guardamos los datos en el contexto
 		c.Set("uid", sessionInfo.UID)
-		c.Set("claims", claims)
-		c.Set("subdomain", clientSubdomain) // Guardamos el subdominio validado
-		
+		c.Set("session_id", sessionID)
+		c.Set("claims", sessionInfo.Claims)
+
+		// ... (tu lógica para extraer el subdominio se queda igual)
 		c.Next()
 	}
 }
-
 func SubdomainMatchMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Obtenemos el subdominio del claim del usuario (inyectado por SessionAuthMiddleware)

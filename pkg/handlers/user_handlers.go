@@ -1,4 +1,3 @@
-// pkg/handlers/user_handlers.go
 package handlers
 
 import (
@@ -13,91 +12,68 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CreateUser maneja la creación de nuevos usuarios
+// CreateUser maneja la creación de nuevos usuarios para un sistema sin contraseña (OTP).
 func CreateUser(c *gin.Context) {
-    // Leer el cuerpo como JSON genérico
-    var body map[string]interface{}
-    if err := c.ShouldBindJSON(&body); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error":   "Invalid JSON format",
-            "details": err.Error(),
-        })
-        return
-    }
+	// Leer el cuerpo como JSON genérico
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid JSON format",
+			"details": err.Error(),
+		})
+		return
+	}
 
-    // Validar y extraer project_id
-    projectID, ok := body["project_id"].(string)
-    if !ok || projectID == "" {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": "Missing or invalid 'project_id'",
-        })
-        return
-    }
+	// Validar y extraer project_id
+	projectID, ok := body["project_id"].(string)
+	if !ok || projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing or invalid 'project_id'",
+		})
+		return
+	}
 
-    // Extraer los campos necesarios para crear el usuario
-    email, _ := body["email"].(string)
-    password, _ := body["password"].(string)
-    displayName, _ := body["display_name"].(string)
+	// Extraer los campos necesarios para crear el usuario
+	email, _ := body["email"].(string)
+	displayName, _ := body["display_name"].(string)
 
-    if email == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
-        return
-    }
-    if password == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Password is required"})
-        return
-    }
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email es requerido."})
+		return
+	}
 
-    // Construir request para Firebase Auth
-    request := firebase.CreateUserRequest{
-        Email:       email,
-        Password:    password,
-        DisplayName: displayName,
-    }
+	// Construir la solicitud para crear un usuario sin contraseña
+	request := firebase.CreateUserRequest{
+		Email:       email,
+		DisplayName: displayName,
+	}
 
-    ctx := context.Background()
-    // 1. Crear usuario en el servicio de Autenticación de Firebase
-    user, err := auth.CreateUser(ctx, request)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error":   "Failed to create user in Auth service",
-            "details": err.Error(),
-        })
-        return
-    }
+	ctx := context.Background()
+	// 1. Crear usuario en Firebase Auth
+	user, err := auth.CreateUser(ctx, request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Fallo al crear usuario en Auth."})
+		return
+	}
 
-    // === PASO AÑADIDO Y CRUCIAL ===
-    // 2. Guardar el hash de la contraseña en Firestore para que el login funcione
-    err = auth.StoreUserCredentials(ctx, user.UID, password)
-    if err != nil {
-        // Si esto falla, el usuario existe pero no podrá loguearse.
-        // Es importante devolver un error claro.
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error":   "User created in Auth, but failed to store credentials in Firestore.",
-            "details": err.Error(),
-        })
-        return
-    }
+	// 2. Crear perfil en Firestore
+	profileData := map[string]interface{}{
+		"user_id":      user.UID,
+		"email":        user.Email,
+		"display_name": user.DisplayName,
+		"status":       "active",
+		"role":         "user",
+		"project_id":   projectID,
+	}
 
-    // 3. Crear perfil en Firestore con project_id
-    profileData := map[string]interface{}{
-        "user_id":      user.UID,
-        "email":        user.Email,
-        "display_name": user.DisplayName,
-        "status":       "active",
-        "role":         "user",
-        "project_id":   projectID,
-    }
+	profileID, err := firestore.CreateDocument(ctx, "profiles", profileData)
+	if err != nil {
+		log.Printf("Warning: Failed to create profile for user %s: %v", user.UID, err)
+	}
 
-    profileID, err := firestore.CreateDocument(ctx, "profiles", profileData)
-    if err != nil {
-        // Esto es menos crítico, por eso solo lo logueamos como advertencia.
-        log.Printf("Warning: Failed to create profile for user %s: %v", user.UID, err)
-    }
-
-    c.JSON(http.StatusCreated, gin.H{
+	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
-		"message": "Usuario y credenciales creados exitosamente",
+		"message": "Usuario creado exitosamente. El usuario puede ahora solicitar un OTP para iniciar sesión.",
 		"user": gin.H{
 			"uid":          user.UID,
 			"email":        user.Email,
@@ -112,7 +88,7 @@ func CreateUser(c *gin.Context) {
 	})
 }
 
-// ListUsers maneja la lista de usuarios con paginación 
+// ListUsers maneja la lista de usuarios con paginación
 func ListUsers(c *gin.Context) {
 	// Parámetros de query opcionales
 	limitStr := c.DefaultQuery("limit", "10")
@@ -138,12 +114,13 @@ func ListUsers(c *gin.Context) {
 
 	// Definimos una estructura segura para la respuesta JSON.
 	type UserResponse struct {
-		UID                 string `json:"uid"`
-		Email               string `json:"email"`
-		DisplayName         string `json:"display_name"`
-		Disabled            bool   `json:"disabled"`
-		CreationTimestamp   int64  `json:"creation_timestamp"`
-		LastLogInTimestamp  int64  `json:"last_log_in_timestamp"`
+		UID                 string                 `json:"uid"`
+		Email               string                 `json:"email"`
+		DisplayName         string                 `json:"display_name"`
+		Disabled            bool                   `json:"disabled"`
+		CustomClaims        map[string]interface{} `json:"custom_claims"`
+		CreationTimestamp   int64                  `json:"creation_timestamp"`
+		LastLogInTimestamp  int64                  `json:"last_login_timestamp"`
 	}
 
 	// Creamos un slice para las respuestas limpias.
@@ -152,12 +129,11 @@ func ListUsers(c *gin.Context) {
 	// Mapeamos los datos del usuario al formato seguro.
 	for _, user := range users {
 		responseUsers = append(responseUsers, UserResponse{
-			UID:         user.UID,
-			Email:       user.Email,
-			DisplayName: user.DisplayName,
-			Disabled:    user.Disabled,
-			// Convertimos el time.Time a un número (milisegundos Unix) que es seguro para JSON.
-			// Esto funciona incluso con la fecha del año 57522.
+			UID:                 user.UID,
+			Email:               user.Email,
+			DisplayName:         user.DisplayName,
+			Disabled:            user.Disabled,
+			CustomClaims:        user.CustomClaims,
 			CreationTimestamp:   user.CreationTime.UnixMilli(),
 			LastLogInTimestamp:  user.LastLogInTime.UnixMilli(),
 		})
@@ -186,13 +162,11 @@ func GetUser(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "User not found",
-			"uid": uid,
+			"uid":   uid,
 		})
 		return
 	}
 
-	// ### LA CORRECCIÓN ESTÁ AQUÍ ###
-	// En lugar de devolver el objeto 'user' directamente, creamos una respuesta segura.
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"user": gin.H{
@@ -202,8 +176,8 @@ func GetUser(c *gin.Context) {
 			"display_name":          user.DisplayName,
 			"photo_url":             user.PhotoURL,
 			"disabled":              user.Disabled,
-			"creation_timestamp":    user.CreationTime.UnixMilli(), // Convertimos la fecha a un número
-			"last_signin_timestamp": user.LastLogInTime.UnixMilli(), // Convertimos la fecha a un número
+			"creation_timestamp":    user.CreationTime.UnixMilli(),
+			"last_signin_timestamp": user.LastLogInTime.UnixMilli(),
 			"custom_claims":         user.CustomClaims,
 		},
 	})
@@ -237,10 +211,10 @@ func GetUserByEmail(c *gin.Context) {
 func UpdateUser(c *gin.Context) {
 	uid := c.Param("uid")
 	var request firebase.UpdateUserRequest
-	
+
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid JSON format",
+			"error":   "Invalid JSON format",
 			"details": err.Error(),
 		})
 		return
@@ -250,7 +224,7 @@ func UpdateUser(c *gin.Context) {
 	user, err := auth.UpdateUser(ctx, uid, request)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to update user",
+			"error":   "Failed to update user",
 			"details": err.Error(),
 		})
 		return
@@ -263,7 +237,7 @@ func UpdateUser(c *gin.Context) {
 	})
 }
 
-// DeleteUser elimina un usuario
+// DeleteUser elimina un usuario de Firebase Authentication
 func DeleteUser(c *gin.Context) {
 	uid := c.Param("uid")
 	if uid == "" {
@@ -272,10 +246,10 @@ func DeleteUser(c *gin.Context) {
 	}
 
 	ctx := context.Background()
-	err := auth.DeleteUser(ctx, uid)
+	err := auth.DeleteUser(ctx, uid) // Asume que 'DeleteUser' existe en tu paquete auth
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to delete user",
+			"error":   "Failed to delete user",
 			"details": err.Error(),
 		})
 		return
@@ -292,7 +266,7 @@ func DeleteUser(c *gin.Context) {
 func SetUserClaims(c *gin.Context) {
 	uid := c.Param("uid")
 	var claims map[string]interface{}
-	
+
 	if err := c.ShouldBindJSON(&claims); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
 		return
@@ -300,20 +274,16 @@ func SetUserClaims(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// 1. Establecer los claims en Firebase Authentication (como antes)
 	err := auth.SetCustomClaims(ctx, uid, claims)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set custom claims in Firebase Auth"})
 		return
 	}
 
-	// 2. ACTUALIZAR (o crear si no existe) el documento en Firestore
-	// Usamos UpdateDocument para asegurarnos de que se sobreescriba si ya existe.
 	err = firestore.UpdateDocument(ctx, "user_claims", uid, map[string]interface{}{
 		"claims": claims,
 	})
 	if err != nil {
-		// Si Update falla porque el doc no existe, intentamos crearlo (esto lo hace más robusto)
 		errCreate := firestore.CreateDocumentWithID(ctx, "user_claims", uid, map[string]interface{}{
 			"claims": claims,
 		})
@@ -333,7 +303,7 @@ func SetUserClaims(c *gin.Context) {
 func UpdateUserClaims(c *gin.Context) {
 	uid := c.Param("uid")
 	var newClaims map[string]interface{}
-	
+
 	if err := c.ShouldBindJSON(&newClaims); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
 		return
@@ -341,46 +311,39 @@ func UpdateUserClaims(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// 1. OBTENER los claims actuales del usuario desde Firebase Auth.
 	user, err := auth.GetUser(ctx, uid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
-	
-	// Si el usuario no tiene claims, empezamos con un mapa vacío.
+
 	existingClaims := user.CustomClaims
 	if existingClaims == nil {
 		existingClaims = make(map[string]interface{})
 	}
 
-	// 2. FUSIONAR los claims existentes con los nuevos.
-	// Los nuevos valores sobreescribirán los viejos si las claves son las mismas.
 	for key, value := range newClaims {
 		existingClaims[key] = value
 	}
 
-	// 3. ESTABLECER el mapa de claims completo y fusionado.
-	// Llamamos a la misma función que antes, pero ahora con el set completo de claims.
 	err = auth.SetCustomClaims(ctx, uid, existingClaims)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set custom claims in Firebase Auth"})
 		return
 	}
 
-	// 4. Sincronizar con Firestore (como en la otra función)
 	err = firestore.UpdateDocument(ctx, "user_claims", uid, map[string]interface{}{
 		"claims": existingClaims,
 	})
 	if err != nil {
-		// ... (manejo de error si la sincronización falla)
+		// No devolvemos error si falla la sincronización, pero lo logueamos
+		log.Printf("Warning: failed to sync patched claims to Firestore for user %s: %v", uid, err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Claims updated successfully",
 		"uid":     uid,
-		"claims":  existingClaims, // Devolvemos el resultado final
+		"claims":  existingClaims,
 	})
 }
-

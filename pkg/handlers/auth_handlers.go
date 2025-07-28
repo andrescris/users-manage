@@ -3,61 +3,59 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/andrescris/firestore/lib/firebase"
 	"github.com/andrescris/firestore/lib/firebase/auth" // Asegúrate que el path sea correcto
 	"github.com/gin-gonic/gin"
 )
 
-// Login maneja la solicitud de inicio de sesión.
-func Login(c *gin.Context) {
-	var req auth.LoginRequest
+// RequestOTP maneja la solicitud de un nuevo código OTP.
+func RequestOTP(c *gin.Context) {
+	var req firebase.RequestOTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "El email y la contraseña son requeridos."})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "El email es requerido."})
+		return
+	}
+	res, err := auth.RequestOTP(c.Request.Context(), req)
+	if err != nil || !res.Success {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": res.Message})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+func LoginWithOTP(c *gin.Context) {
+	var req firebase.LoginWithOTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "El email y el OTP son requeridos."})
 		return
 	}
 
-	// Llama a la función Login de tu librería
-	loginResponse, err := auth.Login(c.Request.Context(), req)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ocurrió un error durante el login", "details": err.Error()})
-		return
-	}
-
-	if !loginResponse.Success {
+	loginResponse, err := auth.LoginWithOTP(c.Request.Context(), req)
+	if err != nil || !loginResponse.Success {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": loginResponse.Message})
 		return
 	}
-
-	// ### CAMBIO IMPORTANTE AQUÍ ###
-	// En lugar de devolver el objeto 'loginResponse' completo (que causa el error de fecha),
-	// construimos una respuesta limpia solo con los datos que el cliente necesita.
+	
+	// En lugar de devolver 'loginResponse' completo, creamos una respuesta segura.
 	c.JSON(http.StatusOK, gin.H{
 		"success":      true,
 		"message":      loginResponse.Message,
 		"session_id":   loginResponse.SessionID,
 		"custom_token": loginResponse.CustomToken,
 		"expires_at":   loginResponse.ExpiresAt,
-		"uid":          loginResponse.User.UID, // Devolvemos solo el UID en lugar del objeto User completo
+		"uid":          loginResponse.User.UID, // Devolvemos solo el UID
 		"claims":       loginResponse.Claims,
 	})
 }
 
+
 // Logout maneja el cierre de sesión.
 func Logout(c *gin.Context) {
-	// El middleware de sesión ya validó y guardó estos datos en el contexto
 	sessionID, _ := c.Get("session_id")
-	uid, _ := c.Get("uid")
-
-	req := auth.LogoutRequest{
-		UID:       uid.(string),
-		SessionID: sessionID.(string),
-	}
-
-	// Llama a la función Logout de tu librería
-	logoutResponse, err := auth.Logout(c.Request.Context(), req)
+	err := auth.Logout(c.Request.Context(), sessionID.(string))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ocurrió un error durante el logout", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ocurrió un error durante el logout."})
 		return
 	}
-
-	c.JSON(http.StatusOK, logoutResponse)
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Sesión cerrada correctamente."})
 }
